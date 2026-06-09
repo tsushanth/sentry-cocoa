@@ -647,14 +647,18 @@ class SentrySessionReplayTests: XCTestCase {
     }
     
     @available(iOS 16.0, tvOS 16, *)
-    func testDealloc_CallsStop() {
+    func testDealloc_DoesNotRetainStartedSessionReplay() {
         let fixture = Fixture()
-        func sutIsDeallocatedAfterCallingMe() {
-            _ = fixture.getSut(options: SentryReplayOptions(sessionSampleRate: 1, onErrorSampleRate: 1))
+
+        weak var weakSut: SentrySessionReplay?
+        autoreleasepool {
+            let sut = fixture.getSut(options: SentryReplayOptions(sessionSampleRate: 1, onErrorSampleRate: 1))
+            weakSut = sut
+            sut.start(rootView: fixture.rootView, fullSession: true)
+            XCTAssertTrue(sut.isRunning)
         }
-        sutIsDeallocatedAfterCallingMe()
-        
-        XCTAssertEqual(fixture.displayLink.invalidateInvocations.count, 1)
+
+        XCTAssertNil(weakSut)
     }
 
     // MARK: - Frame Rate Tests

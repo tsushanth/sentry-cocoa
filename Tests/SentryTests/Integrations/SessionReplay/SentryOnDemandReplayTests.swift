@@ -113,6 +113,29 @@ class SentryOnDemandReplayTests: XCTestCase {
         try FileManager.default.removeItem(at: videoPath)
         wait(for: [videoExpectation], timeout: 1)
     }
+
+    func testGenerateVideo_whenFramesHaveGap_shouldHoldPreviousFrame() throws {
+        // -- Arrange --
+        let sut = getSut()
+
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        sut.addFrameAsync(timestamp: start, maskedViewImage: UIImage.add)
+        sut.addFrameAsync(timestamp: start.addingTimeInterval(3), maskedViewImage: UIImage.add)
+
+        // -- Act --
+        let videos = sut.createVideoWith(beginning: start, end: start.addingTimeInterval(5))
+
+        // -- Assert --
+        XCTAssertEqual(videos.count, 1)
+        let info = try XCTUnwrap(videos.first)
+
+        XCTAssertEqual(info.duration, 5)
+        XCTAssertEqual(info.frameCount, 5)
+        XCTAssertEqual(info.start, start)
+        XCTAssertEqual(info.end, start.addingTimeInterval(5))
+
+        try FileManager.default.removeItem(at: info.path)
+    }
     
     func testAddFrameIsThreadSafe() {
         let processingQueue = SentryDispatchQueueWrapper()

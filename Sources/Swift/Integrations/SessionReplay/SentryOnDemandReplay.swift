@@ -177,7 +177,7 @@ import UIKit
             var currentError: Error?
 
             group.enter()
-            self.renderVideo(with: videoFrames, from: frameCount, at: outputFileURL) { result in
+            self.renderVideo(with: videoFrames, from: frameCount, until: end, at: outputFileURL) { result in
                 switch result {
                 case .success(let videoResult):
                     // Set the frame count/offset to the new index that is returned by the completion block.
@@ -222,7 +222,13 @@ import UIKit
     }
 
     // swiftlint:disable function_body_length cyclomatic_complexity
-    private func renderVideo(with videoFrames: [SentryReplayFrame], from: Int, at outputFileURL: URL, completion: @escaping (Result<SentryRenderVideoResult, Error>) -> Void) {
+    private func renderVideo(
+        with videoFrames: [SentryReplayFrame],
+        from: Int,
+        until videoEnd: Date,
+        at outputFileURL: URL,
+        completion: @escaping (Result<SentryRenderVideoResult, Error>) -> Void
+    ) {
         SentrySDKLog.debug("[Session Replay] Rendering video with \(videoFrames.count) frames, from index: \(from), to output url: \(outputFileURL)")
 
         guard from < videoFrames.count else {
@@ -266,7 +272,8 @@ import UIKit
             videoWidth: videoWidth,
             frameRate: frameRate,
             initialFrameIndex: from,
-            initialImageSize: image.size
+            initialImageSize: image.size,
+            videoEnd: videoEnd
         )
         
         // Append frames to the video writer input in a pull-style manner when the input is ready to receive more media data.

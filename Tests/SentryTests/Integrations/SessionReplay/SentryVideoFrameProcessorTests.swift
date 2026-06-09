@@ -213,6 +213,43 @@ class SentryVideoFrameProcessorTests: XCTestCase {
         XCTAssertEqual(sut.usedFrames.count, 3)
     }
 
+    func testProcessFrames_WhenFramesHaveGap_ShouldHoldPreviousFrame() {
+        let videoWriterInput = TestAVAssetWriterInput(mediaType: .video, outputSettings: nil)
+        fixture.videoWriter.add(videoWriterInput)
+
+        let frames = [
+            SentryReplayFrame(
+                imagePath: fixture.videoFrames[0].imagePath,
+                time: Date(timeIntervalSinceReferenceDate: 0),
+                screenName: "A"
+            ),
+            SentryReplayFrame(
+                imagePath: fixture.videoFrames[0].imagePath,
+                time: Date(timeIntervalSinceReferenceDate: 3),
+                screenName: "B"
+            )
+        ]
+        let sut = SentryVideoFrameProcessor(
+            videoFrames: frames,
+            videoWriter: fixture.videoWriter,
+            currentPixelBuffer: fixture.currentPixelBuffer,
+            outputFileURL: fixture.outputFileURL,
+            videoHeight: fixture.videoHeight,
+            videoWidth: fixture.videoWidth,
+            frameRate: fixture.frameRate,
+            initialFrameIndex: 0,
+            initialImageSize: fixture.initialImageSize,
+            videoEnd: Date(timeIntervalSinceReferenceDate: 5)
+        )
+
+        sut.processFrames(videoWriterInput: videoWriterInput) { _ in }
+
+        XCTAssertEqual(fixture.currentPixelBuffer.appendInvocations.count, 5)
+        let presentationTimes = fixture.currentPixelBuffer.appendInvocations.invocations.map { $0.presentationTime.seconds }
+        XCTAssertEqual(presentationTimes, [0, 1, 2, 3, 4])
+        XCTAssertEqual(sut.usedFrames.compactMap(\.screenName), ["A", "A", "A", "B", "B"])
+    }
+
     func testProcessFrames_WhenVideoWriterNotWriting_ShouldCancelWriting() {
         let sut = fixture.getSut()
         let videoWriterInput = TestAVAssetWriterInput(mediaType: .video, outputSettings: nil)
@@ -538,6 +575,32 @@ class SentryVideoFrameProcessorTests: XCTestCase {
         XCTAssertEqual(videoInfo.frameRate, 1)
         XCTAssertEqual(videoInfo.fileSize, testData.count)
         XCTAssertEqual(videoInfo.screens, ["Screen1", "Screen2", "Screen3"])
+    }
+
+    func testGetVideoInfo_WithMoreThanOneFPS_ShouldUseFractionalDuration() throws {
+        let sut = SentryVideoFrameProcessor(
+            videoFrames: fixture.videoFrames,
+            videoWriter: fixture.videoWriter,
+            currentPixelBuffer: fixture.currentPixelBuffer,
+            outputFileURL: fixture.outputFileURL,
+            videoHeight: fixture.videoHeight,
+            videoWidth: fixture.videoWidth,
+            frameRate: 2,
+            initialFrameIndex: fixture.initialFrameIndex,
+            initialImageSize: fixture.initialImageSize
+        )
+        let testData = Data("test video data".utf8)
+        try testData.write(to: fixture.outputFileURL)
+
+        let videoInfo = try sut.getVideoInfo(
+            from: fixture.outputFileURL,
+            usedFrames: fixture.videoFrames,
+            videoWidth: 200,
+            videoHeight: 100
+        )
+
+        XCTAssertEqual(videoInfo.duration, 1.5)
+        XCTAssertEqual(videoInfo.end, Date(timeIntervalSinceReferenceDate: 1.5))
     }
 
     func testGetVideoInfo_WithNonExistentFile_ShouldThrowError() {
