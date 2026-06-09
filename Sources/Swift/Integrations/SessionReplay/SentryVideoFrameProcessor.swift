@@ -140,17 +140,26 @@ class SentryVideoFrameProcessor {
     }
 
     private func appendLastFrameUntilVideoEnd(videoWriterInput: AVAssetWriterInput) -> AppendFrameResult {
-        guard let videoEnd = videoEnd else { return .success }
-        return appendLastFrame(until: videoEnd, videoWriterInput: videoWriterInput)
+        guard let videoEnd = videoEnd, let videoStart = videoStart else { return .success }
+        return appendLastFrame(
+            untilFrameIndex: presentationFrameCount(until: videoEnd, from: videoStart),
+            videoWriterInput: videoWriterInput
+        )
     }
 
     private func appendLastFrame(until date: Date, videoWriterInput: AVAssetWriterInput) -> AppendFrameResult {
-        guard let videoStart = videoStart,
-            let lastAppendedImage = lastAppendedImage,
+        guard let videoStart = videoStart else { return .success }
+        return appendLastFrame(
+            untilFrameIndex: presentationFrameIndex(forCapturedFrameAt: date, from: videoStart),
+            videoWriterInput: videoWriterInput
+        )
+    }
+
+    private func appendLastFrame(untilFrameIndex targetFrameIndex: Int, videoWriterInput: AVAssetWriterInput) -> AppendFrameResult {
+        guard let lastAppendedImage = lastAppendedImage,
             let lastAppendedFrame = lastAppendedFrame
         else { return .success }
 
-        let targetFrameIndex = presentationFrameIndex(for: date, from: videoStart)
         while outputFrameIndex < targetFrameIndex {
             switch append(image: lastAppendedImage, forFrame: lastAppendedFrame, videoWriterInput: videoWriterInput) {
             case .success:
@@ -185,11 +194,19 @@ class SentryVideoFrameProcessor {
         return .success
     }
 
-    private func presentationFrameIndex(for date: Date, from start: Date) -> Int {
+    private func presentationFrameIndex(forCapturedFrameAt date: Date, from start: Date) -> Int {
         let elapsed = max(0, date.timeIntervalSince(start))
-        let frame = ceil(elapsed * Double(frameRate))
-        return max(outputFrameIndex, Int(frame))
+        let frame = floor(elapsed * Double(frameRate) + Self.frameIndexEpsilon)
+        return max(0, Int(frame))
     }
+
+    private func presentationFrameCount(until date: Date, from start: Date) -> Int {
+        let elapsed = max(0, date.timeIntervalSince(start))
+        let frameCount = ceil(elapsed * Double(frameRate) - Self.frameIndexEpsilon)
+        return max(0, Int(frameCount))
+    }
+
+    private static let frameIndexEpsilon = 0.000001
 
     // swiftlint:enable function_body_length cyclomatic_complexity
     func finishVideo(frameIndex: Int, onCompletion completion: @escaping (Result<SentryRenderVideoResult, Error>) -> Void) {
