@@ -250,6 +250,38 @@ class SentryVideoFrameProcessorTests: XCTestCase {
         XCTAssertEqual(sut.usedFrames.compactMap(\.screenName), ["A", "A", "A", "B", "B"])
     }
 
+    func testProcessFrames_WhenVideoEndHasFractionalGap_ShouldNotCompressDuration() {
+        let videoWriterInput = TestAVAssetWriterInput(mediaType: .video, outputSettings: nil)
+        fixture.videoWriter.add(videoWriterInput)
+
+        let frames = [
+            SentryReplayFrame(
+                imagePath: fixture.videoFrames[0].imagePath,
+                time: Date(timeIntervalSinceReferenceDate: 0),
+                screenName: "A"
+            )
+        ]
+        let sut = SentryVideoFrameProcessor(
+            videoFrames: frames,
+            videoWriter: fixture.videoWriter,
+            currentPixelBuffer: fixture.currentPixelBuffer,
+            outputFileURL: fixture.outputFileURL,
+            videoHeight: fixture.videoHeight,
+            videoWidth: fixture.videoWidth,
+            frameRate: fixture.frameRate,
+            initialFrameIndex: 0,
+            initialImageSize: fixture.initialImageSize,
+            videoEnd: Date(timeIntervalSinceReferenceDate: 2.4)
+        )
+
+        sut.processFrames(videoWriterInput: videoWriterInput) { _ in }
+
+        XCTAssertEqual(fixture.currentPixelBuffer.appendInvocations.count, 3)
+        let presentationTimes = fixture.currentPixelBuffer.appendInvocations.invocations.map { $0.presentationTime.seconds }
+        XCTAssertEqual(presentationTimes, [0, 1, 2])
+        XCTAssertEqual(sut.usedFrames.compactMap(\.screenName), ["A", "A", "A"])
+    }
+
     func testProcessFrames_WhenVideoWriterNotWriting_ShouldCancelWriting() {
         let sut = fixture.getSut()
         let videoWriterInput = TestAVAssetWriterInput(mediaType: .video, outputSettings: nil)

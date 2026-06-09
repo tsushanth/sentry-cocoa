@@ -187,7 +187,7 @@ class SentryVideoFrameProcessor {
 
     private func presentationFrameIndex(for date: Date, from start: Date) -> Int {
         let elapsed = max(0, date.timeIntervalSince(start))
-        let frame = (elapsed * Double(frameRate)).rounded(.toNearestOrAwayFromZero)
+        let frame = ceil(elapsed * Double(frameRate))
         return max(outputFrameIndex, Int(frame))
     }
 
